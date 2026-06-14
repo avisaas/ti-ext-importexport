@@ -4,69 +4,38 @@ declare(strict_types=1);
 
 namespace IgniterLabs\ImportExport;
 
-use Igniter\System\Classes\BaseExtension;
-use IgniterLabs\ImportExport\Classes\ImportExportManager;
-use IgniterLabs\ImportExport\Models\MenuExport;
-use IgniterLabs\ImportExport\Models\MenuImport;
-use Override;
+use IgniterLabs\ImportExport\AviMarketplace\Admin;
+use IgniterLabs\ImportExport\AviMarketplace\Setup;
 
-/**
- * ImportExport Extension Information File
- */
-class Extension extends BaseExtension
+class Extension extends UpstreamExtension
 {
-    public array $singletons = [
-        ImportExportManager::class,
-    ];
+    private bool $aviMarketplaceGated = false;
 
-    public function registerImportExport(): array
+    public function __construct($app)
     {
-        return [
-            'import' => [
-                'menus' => [
-                    'label' => 'Import Menu Items',
-                    'model' => MenuImport::class,
-                    'configFile' => 'igniterlabs.importexport::/models/menuimport',
-                    'permissions' => ['Admin.Menus'],
-                ],
-            ],
-            'export' => [
-                'menus' => [
-                    'label' => 'Export Menu Items',
-                    'model' => MenuExport::class,
-                    'configFile' => 'igniterlabs.importexport::/models/menuexport',
-                    'permissions' => ['Admin.Menus'],
-                ],
-            ],
-        ];
+        parent::__construct($app);
+
+        $gated = Setup::gated();
+        $this->aviMarketplaceGated = $gated;
+
+        if ($gated) {
+            $this->disabled = true;
+        }
+
+        rescue(fn () => Admin::attach($gated), null, false);
     }
 
-    #[Override]
-    public function registerPermissions(): array
+    public function register(): void
     {
-        return [
-            'IgniterLabs.ImportExport.Manage' => [
-                'description' => 'Access import/export tool',
-                'group' => 'igniter::system.permissions.name',
-            ],
-        ];
+        if (!Setup::withholds($this->aviMarketplaceGated)) {
+            parent::register();
+        }
     }
 
-    #[Override]
-    public function registerNavigation(): array
+    public function boot(): void
     {
-        return [
-            'tools' => [
-                'child' => [
-                    'importexport' => [
-                        'priority' => 200,
-                        'class' => 'importexport',
-                        'href' => admin_url('igniterlabs/importexport/import_export'),
-                        'title' => 'Import/Export',
-                        'permission' => 'IgniterLabs.ImportExport.Manage',
-                    ],
-                ],
-            ],
-        ];
+        if (method_exists(parent::class, 'boot') && !Setup::withholds($this->aviMarketplaceGated)) {
+            parent::boot();
+        }
     }
 }
